@@ -255,12 +255,12 @@ Once running, visit:
 
 ## Tech Stack
 
-- **FastAPI** - Modern Python web framework
-- **LangGraph** - Workflow orchestration with LLMs
-- **LangChain** - LLM framework
-- **Pydantic** - Data validation
-- **Uvicorn** - ASGI server
-- **pytest** - Testing framework
+- **FastAPI** - Modern async Python web framework for building APIs. Provides automatic data validation, API documentation, and better performance than Flask
+- **Uvicorn** - ASGI server that runs the FastAPI application and handles HTTP requests
+- **LangGraph** - Workflow orchestration framework for building stateful, multi-step LLM applications
+- **LangChain** - Framework for developing applications powered by language models
+- **Pydantic** - Data validation using Python type hints. Automatically validates request/response data
+- **pytest** - Testing framework for Python
 
 ## Best Practices
 
