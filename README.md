@@ -136,46 +136,101 @@ class TravelPlannerGraph:
 
 ## Getting Started
 
-### 1. Setup Virtual Environment
+### Prerequisites
+
+- Python 3.12 or higher
+- pip (Python package manager)
+- Git
+
+### 1. Clone the Repository
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate  # On Windows: venv\Scripts\activate
+git clone <repository-url>
+cd TravelAgencyBE
 ```
 
-### 2. Install Dependencies
+### 2. Setup Virtual Environment
+
+**Windows**:
+```bash
+python -m venv .venv
+.venv\Scripts\activate
+```
+
+**macOS/Linux**:
+```bash
+python -m venv .venv
+source .venv/bin/activate
+```
+
+### 3. Install Dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 3. Configure Environment Variables
+### 4. Configure Environment Variables
+
+Create a `.env` file in the project root by copying the example (if available):
 
 ```bash
-cp .env.example .env
-# Edit .env and add your API keys (e.g., OPENAI_API_KEY)
+# Create .env file with the following content:
 ```
 
-### 4. Run the Server
+**Important**: Make sure to use the following format for the `.env` file:
 
-**Development mode (with auto-reload)**:
+```env
+# API Settings
+APP_NAME="Travel Agency Backend"
+API_VERSION="v1"
+APP_DEBUG=True
+
+# Server Settings
+HOST="0.0.0.0"
+PORT=8000
+
+# CORS Settings (JSON format for list)
+ALLOWED_ORIGINS=["http://localhost:3000","http://localhost:5173"]
+
+# OpenAI Settings
+OPENAI_API_KEY=your_openai_api_key_here
+OPENAI_MODEL=gpt-4o-mini
+
+# LangGraph Settings
+MAX_ITERATIONS=10
+RECURSION_LIMIT=25
+```
+
+**Configuration Notes**:
+- `ALLOWED_ORIGINS` must be in JSON array format: `["http://localhost:3000","http://localhost:5173"]`
+- `APP_DEBUG` should be `True` or `False` (capitalized boolean)
+- Replace `your_openai_api_key_here` with your actual OpenAI API key
+
+### 5. Run the Server
+
+Make sure your virtual environment is activated (you should see `(.venv)` in your terminal prompt).
+
 ```bash
-python -m src.main
-# or
 uvicorn src.main:app --reload
 ```
 
-**Production mode**:
+Or alternatively:
 ```bash
-uvicorn src.main:app --host 0.0.0.0 --port 8000
+python -m uvicorn src.main:app --reload
 ```
 
-### 5. Test the API
+The server will start at `http://127.0.0.1:8000`
+
+### 6. Test the API
 
 Health check:
 ```bash
 curl http://localhost:8000/v1/health
 ```
+
+Or open your browser and visit:
+- API Documentation: http://localhost:8000/docs
+- Health Check: http://localhost:8000/v1/health
 
 ## Development Workflow
 
@@ -239,19 +294,50 @@ async def plan_trip(request: TripRequest):
 
 ## Environment Variables
 
-Key environment variables (see `.env.example`):
+Key environment variables:
 
+- `APP_NAME` - Application name (default: "Travel Agency Backend")
+- `API_VERSION` - API version prefix (default: "v1")
+- `APP_DEBUG` - Enable debug mode and verbose logging (True/False)
+- `HOST` - Server host (default: "0.0.0.0")
+- `PORT` - Server port (default: 8000)
+- `ALLOWED_ORIGINS` - CORS allowed origins in JSON array format (e.g., ["http://localhost:3000"])
 - `OPENAI_API_KEY` - Your OpenAI API key for LangChain/LangGraph
 - `OPENAI_MODEL` - Model to use (default: gpt-4o-mini)
-- `DEBUG` - Enable debug mode and verbose logging
-- `ALLOWED_ORIGINS` - CORS allowed origins (your frontend URL)
-- `RECURSION_LIMIT` - Max recursion depth for LangGraph
+- `MAX_ITERATIONS` - Max iterations for LangGraph workflows (default: 10)
+- `RECURSION_LIMIT` - Max recursion depth for LangGraph (default: 25)
 
 ## API Documentation
 
 Once running, visit:
 - **Interactive docs**: http://localhost:8000/docs (Swagger UI)
 - **Alternative docs**: http://localhost:8000/redoc (ReDoc)
+
+## Troubleshooting
+
+### Common Issues
+
+**Issue: `JSONDecodeError` when parsing `ALLOWED_ORIGINS`**
+- **Solution**: Make sure `ALLOWED_ORIGINS` is in JSON array format in your `.env` file:
+  ```env
+  ALLOWED_ORIGINS=["http://localhost:3000","http://localhost:5173"]
+  ```
+  NOT: `ALLOWED_ORIGINS=http://localhost:3000,http://localhost:5173`
+
+**Issue: `ValidationError` for `app_debug` field**
+- **Solution**: Ensure `APP_DEBUG` uses capitalized boolean values:
+  ```env
+  APP_DEBUG=True   # or False
+  ```
+  NOT: `APP_DEBUG=true` or `APP_DEBUG=yes`
+
+**Issue: Module not found errors**
+- **Solution**: Make sure you activated the virtual environment:
+  - Windows: `.venv\Scripts\activate`
+  - macOS/Linux: `source .venv/bin/activate`
+
+**Issue: Port already in use**
+- **Solution**: Either stop the process using port 8000, or change the `PORT` in your `.env` file
 
 ## Tech Stack
 

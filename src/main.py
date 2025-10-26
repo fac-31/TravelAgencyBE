@@ -9,7 +9,7 @@ from src.api.routes import health
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO if not settings.debug else logging.DEBUG,
+    level=logging.INFO if not settings.app_debug else logging.DEBUG,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
@@ -20,7 +20,7 @@ async def lifespan(app: FastAPI):
     """Lifespan context manager for startup and shutdown events."""
     # Startup
     logger.info(f"Starting {settings.app_name}")
-    logger.info(f"Debug mode: {settings.debug}")
+    logger.info(f"Debug mode: {settings.app_debug}")
     logger.info(f"API Version: {settings.api_version}")
     yield
     # Shutdown
@@ -32,7 +32,7 @@ def create_application() -> FastAPI:
     app = FastAPI(
         title=settings.app_name,
         version=settings.api_version,
-        debug=settings.debug,
+        debug=settings.app_debug,
         lifespan=lifespan,
     )
 
@@ -61,5 +61,5 @@ if __name__ == "__main__":
         "src.main:app",
         host=settings.host,
         port=settings.port,
-        reload=settings.debug,
+        reload=settings.app_debug,
     )

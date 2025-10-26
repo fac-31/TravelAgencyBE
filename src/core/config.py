@@ -7,7 +7,7 @@ class Settings(BaseSettings):
     # API Settings
     app_name: str = "Travel Agency Backend"
     api_version: str = "v1"
-    debug: bool = False
+    app_debug: bool = False
 
     # Server Settings
     host: str = "0.0.0.0"
@@ -30,7 +30,8 @@ class Settings(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
         case_sensitive=False,
-        extra="ignore"
+        extra="ignore",
+        env_ignore_empty=True
     )
 
 
