@@ -5,16 +5,29 @@ from langchain.messages import SystemMessage, ToolMessage, AnyMessage, HumanMess
 from langgraph.graph import StateGraph, START, END
 from typing_extensions import TypedDict, Annotated
 import operator
+import os
+from dotenv import load_dotenv
 
 @tool
 def get_exchange_rate(to_currency: str, from_currency: str = None) -> float:
     """Fetch current exchange rate from local currency to target currency."""
     
-    url = f"https://api.exchangerate.host/convert?from={from_currency}&to={to_currency}"
+    load_dotenv()
+    api_key = os.getenv("EXCHANGE_RATE_API_KEY")
+    
+    if not api_key:
+        return "Error: API key not found in environment variables."
+    
+    url = f"https://v6.exchangerate-api.com/v6/{api_key}/pair/{from_currency}/{to_currency}"
+    
     try:
         res = requests.get(url, timeout=5)
         data = res.json()
-        return data["info"]["rate"]
+        
+        if data.get("result") == "success":
+            return data["conversion_rate"]
+        else:
+            return f"API error: {data.get('error-type', 'Unknown error')}"
     except Exception as e:
         return f"Error fetching exchange rate: {str(e)}"
 
