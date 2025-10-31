@@ -4,8 +4,12 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from dotenv import load_dotenv
+load_dotenv()
+
 from src.core.config import settings
 from src.api.routes import health
+from src.api.routes import ask_agent
 
 # Configure logging
 logging.basicConfig(
@@ -25,6 +29,7 @@ async def lifespan(app: FastAPI):
     yield
     # Shutdown
     logger.info("Shutting down application")
+
 
 
 def create_application() -> FastAPI:
@@ -47,6 +52,7 @@ def create_application() -> FastAPI:
 
     # Include routers
     app.include_router(health.router, prefix=f"/{settings.api_version}", tags=["health"])
+    app.include_router(ask_agent.router)
 
     return app
 
