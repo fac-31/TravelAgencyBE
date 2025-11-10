@@ -2,12 +2,15 @@
 Flight agent - searches for flight offers using Amadeus API
 """
 
+from fastapi import Request
 import requests
 import os
 from datetime import datetime
 from dotenv import load_dotenv
 from langchain.chat_models import init_chat_model
 from langchain.messages import SystemMessage, HumanMessage
+
+from src.agents.tools.geoip import get_geoip
 
 
 load_dotenv()
@@ -115,17 +118,20 @@ def fetch_flight_offers(origin: str,
         return f"Error: Unexpected error while searching flights: {str(e)}"
 
 
-def flight_agent(user_message: str) -> str:
+def flight_agent(user_message: str, request: Request) -> str:
     """
     Process user message about flight searches and return response.
     Uses LLM to understand request and extract flight parameters.
     """
     model = init_chat_model("anthropic:claude-sonnet-4-5", temperature=0)
 
+    geoip = get_geoip(request)
+
     system_prompt = SystemMessage(
         content=(
             "You are a flight assistant that helps users find flight offers. "
             "Understand the user's request to extract origin, destination, and travel dates. "
+            f"Assume the user's home location is based on their geolocation: {geoip.get('city', '')}, {geoip.get('country_name', '')} . "
             "Assume 1 adult passenger and one-way trips unless stated otherwise. "
             "Use 3-letter IATA airport codes (e.g., NYC, LAX, LHR). "
             "Provide helpful responses about flight options."

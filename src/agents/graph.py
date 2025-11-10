@@ -100,7 +100,7 @@ def run_weather(state: RouterState):
 def run_exchange(state: RouterState):
     """Call the exchange agent function."""
     user_msg = state["messages"][-1].content
-    result = exchange_agent(user_msg)
+    result = exchange_agent(user_msg, state["request"])
 
     results = state.get("results", {})
     results["exchange"] = result
@@ -120,7 +120,7 @@ def run_form(state: RouterState):
 def run_flight(state: RouterState):
     """Call the flight agent function."""
     user_msg = state["messages"][-1].content
-    result = flight_agent(user_msg)
+    result = flight_agent(user_msg, state["request"])
 
     results = state.get("results", {})
     results["flight"] = result
