@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from pydantic import BaseModel
 from langchain.messages import HumanMessage
 from src.agents.receptionist import receptionist
@@ -9,11 +9,14 @@ class Query(BaseModel):
     input: str
 
 @router.post("/ask")
-def ask_agent(query: Query):
+def ask_agent(query: Query, request: Request):
     try:
         messages = [HumanMessage(content=query.input)]
         print({"input": query.input})
-        result = receptionist.invoke({"messages": messages})
+        result = receptionist.invoke({
+            "request": request,
+            "messages": messages,
+            })
         final_response = result["messages"][-1].content
         print({"final-response": final_response})
         return {"response": final_response}

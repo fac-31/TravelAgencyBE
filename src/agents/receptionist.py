@@ -1,3 +1,4 @@
+from fastapi import Request
 from langchain.chat_models import init_chat_model
 from langchain.messages import (
     SystemMessage,
@@ -10,11 +11,13 @@ import operator
 
 from .weather_agent import weather_agent
 from .exchange_agent import exchange_agent
+from .flight_agent import flight_agent
 from .tools.currency_tools import detect_local_currency
 
 
 # ========== STATE ==========
 class RouterState(TypedDict):
+    request: dict  # simplified request info
     messages: Annotated[list, operator.add]
     routes: list[str]  # list of chosen routes to run
     results: dict[str, str] # results from each specialized agent
@@ -69,7 +72,8 @@ def run_weather(state: RouterState):
 def run_exchange(state: RouterState):
     """Run exchange agent with local currency automatically detected."""
     user_msg = state["messages"][-1].content
-    from_currency = detect_local_currency()  # detect local currency automatically
+    request_dict = state.get("request", {"client": {"host": "127.0.0.1"}})
+    from_currency = detect_local_currency(request_dict)
     
     # Pass a system message to inform LLM the from_currency is known
     system_msg = HumanMessage(
@@ -87,6 +91,15 @@ def run_exchange(state: RouterState):
     
     results = state.get("results", {})
     results["exchange"] = content
+    return {"results": results}
+
+
+def run_flight(state: RouterState):
+    res = flight_agent.invoke(state)
+    content = res["messages"][-1].content
+
+    results = state.get("results", {})
+    results["flight"] = content
     return {"results": results}
 
 
@@ -128,6 +141,10 @@ nodes = {
     "exchange": {
         "callback": run_exchange,
         "prompt": "for currency or travel money queries",
+    },
+    "flight": {
+        "callback": run_flight,
+        "prompt": "for flight booking or travel information queries",
     },
 }
 
