@@ -1,6 +1,6 @@
 """
 Main LangGraph router for the Travel Agency Backend.
-Orchestrates specialized agents (weather, exchange, form) based on user requests.
+Orchestrates specialized agents (weather, exchange, form, flight) based on user requests.
 """
 
 from langchain.chat_models import init_chat_model
@@ -12,6 +12,7 @@ import operator
 from .weather_agent import weather_agent
 from .exchange_agent import exchange_agent
 from .form_agent import form_agent
+from .flight_agent import flight_agent
 
 
 # ========== STATE ==========
@@ -21,6 +22,7 @@ class RouterState(TypedDict):
     messages: Annotated[list, operator.add]
     routes: list[str]  # list of chosen routes to run
     results: dict[str, str]  # results from each specialized agent
+    request: dict  # request context (client IP, etc.) for geolocation and other features
 
 
 # ========== MODEL ==========
@@ -32,6 +34,7 @@ AGENTS = {
     "weather": "for weather forecasts or destinations",
     "exchange": "for currency or travel money queries",
     "form": "for creating and collecting travel booking information",
+    "flight": "for searching and booking flights",
 }
 
 
@@ -114,6 +117,16 @@ def run_form(state: RouterState):
     return {"results": results}
 
 
+def run_flight(state: RouterState):
+    """Call the flight agent function."""
+    user_msg = state["messages"][-1].content
+    result = flight_agent(user_msg)
+
+    results = state.get("results", {})
+    results["flight"] = result
+    return {"results": results}
+
+
 # ========== GRAPH CONSTRUCTION ==========
 def _build_router_graph():
     """Build the main router orchestration graph."""
@@ -127,6 +140,7 @@ def _build_router_graph():
     graph.add_node("weather", run_weather)
     graph.add_node("exchange", run_exchange)
     graph.add_node("form", run_form)
+    graph.add_node("flight", run_flight)
 
     # Graph edges
     graph.add_edge(START, "decide_route")
@@ -149,7 +163,7 @@ def _build_router_graph():
     graph.add_conditional_edges("decide_route", route_logic)
 
     # From each agent, check if more agents need to run
-    for agent_name in ["weather", "exchange", "form"]:
+    for agent_name in ["weather", "exchange", "form", "flight"]:
         graph.add_conditional_edges(agent_name, route_logic)
 
     return graph.compile()
