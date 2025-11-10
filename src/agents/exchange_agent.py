@@ -53,7 +53,9 @@ def tool_node(state: dict):
         tool = get_exchange_rate
         obs = tool.invoke(tool_call["args"])
         results.append(ToolMessage(content=obs, tool_call_id=tool_call["id"]))
-    return {"messages": results}
+    # Append tool results to the existing message history so tool_result
+    # blocks properly reference the AI message's tool_use block.
+    return {"messages": state["messages"] + results}
 
 def should_continue(state: MessagesState):
     return "tool_node" if state["messages"][-1].tool_calls else END

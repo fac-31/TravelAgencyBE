@@ -100,7 +100,9 @@ def tool_node(state: dict):
         tool = get_weather
         obs = tool.invoke(tool_call["args"])
         results.append(ToolMessage(content=obs, tool_call_id=tool_call["id"]))
-    return {"messages": results}
+    # Append tool results to the existing messages list so the tool_result
+    # blocks refer to the AI message containing the matching tool_use.
+    return {"messages": state["messages"] + results}
 
 def should_continue(state: MessagesState):
     return "tool_node" if state["messages"][-1].tool_calls else END
