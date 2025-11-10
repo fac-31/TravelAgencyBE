@@ -1,16 +1,21 @@
+"""
+GeoIP utility for detecting user location based on IP address.
+Results are cached in-memory and persisted to disk for performance.
+"""
+
 import requests
 import time
 import json
 import os
 from typing import Optional, Dict, Any, Union
-from fastapi import Request
 
-# Simple in-memory cache for geoip results keyed by IP address.
+
+# In-memory cache for geoip results keyed by IP address
 # Stores (timestamp_seconds, response_dict). TTL defaults to 24 hours.
 _GEOIP_CACHE: Dict[str, tuple[float, Dict[str, Any]]] = {}
 _GEOIP_TTL_SECONDS = 60 * 60 * 24
 
-# File used to persist the cache across process restarts.
+# File used to persist the cache across process restarts
 _CACHE_FILENAME = os.path.join(os.path.dirname(__file__), ".geoip_cache.json")
 
 
@@ -37,10 +42,7 @@ def _load_cache_from_disk() -> None:
 
 
 def _save_cache_to_disk() -> None:
-    """Persist _GEOIP_CACHE to disk in a small JSON structure.
-
-    The format is: { ip: {"ts": <timestamp>, "data": <response dict>}, ... }
-    """
+    """Persist _GEOIP_CACHE to disk in a small JSON structure."""
     try:
         to_write: Dict[str, Dict[str, Any]] = {}
         for key, (ts, data) in _GEOIP_CACHE.items():
@@ -51,26 +53,29 @@ def _save_cache_to_disk() -> None:
         print("Failed to save geoip cache to disk:", e)
 
 
-def _extract_ip(request: Union[Request, dict, None]) -> Optional[str]:
+def _extract_ip(request: Union[dict, None]) -> Optional[str]:
+    """Extract IP address from request dict."""
     if request is None:
         return None
-    # Support simplified dict-style request used elsewhere in this project
     if isinstance(request, dict):
         return request.get("client", {}).get("host")
-    # FastAPI Request
-    try:
-        return request.client.host
-    except Exception:
-        return None
+    return None
 
 
-def get_geoip(request: Union[Request, dict, None], ttl: int = _GEOIP_TTL_SECONDS) -> Optional[Dict[str, Any]]:
-    """Get geolocation information for a given IP address.
+def get_geoip(request: Union[dict, None], ttl: int = _GEOIP_TTL_SECONDS) -> Optional[Dict[str, Any]]:
+    """
+    Get geolocation information for a given IP address.
 
-    Accepts either a FastAPI ``Request`` or a simplified ``dict`` with
-    shape {"client": {"host": "<ip>"}}. Results are cached in-memory
-    keyed by IP for ``ttl`` seconds (default 24h). Cache is persisted to
-    ``.geoip_cache.json`` next to this module so lookups survive reloads.
+    Accepts a simplified dict with shape {"client": {"host": "<ip>"}}.
+    Results are cached in-memory keyed by IP for `ttl` seconds (default 24h).
+    Cache is persisted to `.geoip_cache.json` next to this module so lookups survive reloads.
+
+    Args:
+        request: Dict with request info, should contain client IP
+        ttl: Cache time-to-live in seconds (default 24h)
+
+    Returns:
+        Dict with geolocation data (city, country_name, currency, etc.) or None on error
     """
     try:
         ip = _extract_ip(request)

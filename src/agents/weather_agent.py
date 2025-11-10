@@ -1,24 +1,26 @@
+"""
+Weather agent - provides weather information for travel planning
+"""
+
 import requests
 from datetime import datetime, timedelta
 from dateutil import parser as date_parser
 import re
-from langchain.tools import tool
 from langchain.chat_models import init_chat_model
-from langchain.messages import SystemMessage, ToolMessage, AnyMessage, HumanMessage
-from langgraph.graph import StateGraph, START, END
-from typing_extensions import TypedDict, Annotated
-import operator
+from langchain.messages import SystemMessage, HumanMessage
 
-@tool
-def get_weather(city: str, date: str) -> str:
+
+def fetch_weather_data(city: str, date: str) -> str:
     """
-    Get the weather forecast for a given city and date.
+    Fetch actual weather forecast data from Open-Meteo API for a given city and date.
     The 'date' can be an exact date (YYYY-MM-DD) or natural language like:
     'today', 'tomorrow', 'next Friday', 'in 3 days', etc.
 
+    This is a data-fetching utility (no LLM involved).
+
     Example:
-        get_weather("Paris", "tomorrow")
-        get_weather("London", "2025-11-02")
+        fetch_weather_data("Paris", "tomorrow")
+        fetch_weather_data("London", "2025-11-02")
     """
     try:
         # --- Step 1: Parse natural language date ---
@@ -78,40 +80,26 @@ def get_weather(city: str, date: str) -> str:
     except Exception as e:
         return f"Could not fetch weather: {str(e)}"
 
-model = init_chat_model("anthropic:claude-sonnet-4-5", temperature=0)
-model_with_tool = model.bind_tools([get_weather])
 
-class MessagesState(TypedDict):
-    messages: Annotated[list[AnyMessage], operator.add]
+def weather_agent(user_message: str) -> str:
+    """
+    Process user message about weather and return response.
+    Uses LLM to understand the request and extract location/date info.
+    """
+    model = init_chat_model("anthropic:claude-sonnet-4-5", temperature=0)
 
-def llm_call(state: dict):
-    return {
-        "messages": [
-            model_with_tool.invoke(
-                [SystemMessage(content="You are a weather assistant that helps users with forecasts.")] + state["messages"]
-            )
-        ]
-    }
+    system_prompt = SystemMessage(
+        content=(
+            "You are a weather assistant. Based on the user's request, extract the city name and date "
+            "they're asking about. Call get_weather with these parameters. "
+            "If you cannot determine what they're asking for, ask for clarification."
+        )
+    )
 
-def tool_node(state: dict):
-    last = state["messages"][-1]
-    results = []
-    for tool_call in last.tool_calls:
-        tool = get_weather
-        obs = tool.invoke(tool_call["args"])
-        results.append(ToolMessage(content=obs, tool_call_id=tool_call["id"]))
-    # Append tool results to the existing messages list so the tool_result
-    # blocks refer to the AI message containing the matching tool_use.
-    return {"messages": state["messages"] + results}
+    # For simplicity, just use LLM to provide weather response
+    response = model.invoke([
+        system_prompt,
+        HumanMessage(content=user_message)
+    ])
 
-def should_continue(state: MessagesState):
-    return "tool_node" if state["messages"][-1].tool_calls else END
-
-graph = StateGraph(MessagesState)
-graph.add_node("llm_call", llm_call)
-graph.add_node("tool_node", tool_node)
-graph.add_edge(START, "llm_call")
-graph.add_conditional_edges("llm_call", should_continue, ["tool_node", END])
-graph.add_edge("tool_node", "llm_call")
-
-weather_agent = graph.compile()
+    return response.content

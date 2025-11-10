@@ -1,32 +1,46 @@
+"""
+Flight agent - searches for flight offers using Amadeus API
+"""
+
+from fastapi import Request
 import requests
 import os
 from datetime import datetime
 from dotenv import load_dotenv
-from langchain.tools import tool
 from langchain.chat_models import init_chat_model
-from langchain.messages import SystemMessage, ToolMessage, AnyMessage
-from langgraph.graph import StateGraph, START, END
-from typing_extensions import TypedDict, Annotated
-from .tools.geoip import get_geoip
+from langchain.messages import SystemMessage, HumanMessage
+
+from src.agents.tools.geoip import get_geoip
 
 
 load_dotenv()
 
 
-@tool
-def get_flights(origin: str,
-                destination: str,
-                departure_date: str,
-                adults: int = 1,
-                return_date: str | None = None,
-                max_results: int = 5) -> str:
-    """Search flights using the Amadeus test API and return a human-friendly summary.
+def fetch_flight_offers(origin: str,
+                       destination: str,
+                       departure_date: str,
+                       adults: int = 1,
+                       return_date: str | None = None,
+                       max_results: int = 5) -> str:
+    """
+    Fetch flight offers from the Amadeus test API.
+
+    Args:
+        origin: 3-letter IATA code (e.g., 'NYC')
+        destination: 3-letter IATA code (e.g., 'LAX')
+        departure_date: Date in YYYY-MM-DD format
+        adults: Number of adult passengers (default 1)
+        return_date: Optional return date for round trips
+        max_results: Maximum number of results to return (default 5)
+
+    Returns:
+        str: Human-friendly summary of flight offers or error message
     """
     client_id = os.getenv("AMDERUS_API_KEY")
     client_secret = os.getenv("AMADEUS_API_SECRET")
 
     if not client_id or not client_secret:
-        return "Error: Amadeus client id/secret not found in environment variables (AMA_CLIENT_ID / AMA_CLIENT_SECRET)."
+        return "Error: Amadeus credentials not configured. Please set AMDERUS_API_KEY and AMADEUS_API_SECRET in environment."
 
     try:
         # --- Get access token ---
@@ -42,24 +56,11 @@ def get_flights(origin: str,
         try:
             token_res.raise_for_status()
         except requests.exceptions.HTTPError as e:
-            status = token_res.status_code
-            detail = token_res.json() if token_res.text else {}
-            error_msg = f"Failed to get access token (HTTP {status}): {detail.get('error_description') or detail.get('error') or str(e)}"
-            print("\nAmadeus Auth Error:")
-            print("-" * 60)
-            print(f"Status: {status}")
-            print(f"Response: {token_res.text}")
-            print(f"Headers: {dict(token_res.headers)}")
-            print("-" * 60)
-            return "Sorry, there was a problem authenticating with the flight search service. Please try again later."
-            
+            return "Error: Could not authenticate with flight service."
+
         access_token = token_res.json().get("access_token")
         if not access_token:
-            print("\nAmadeus Auth Error: No access token in response")
-            print("-" * 60)
-            print(f"Response: {token_res.text}")
-            print("-" * 60)
-            return "Sorry, there was a problem authenticating with the flight search service. Please try again later."
+            return "Error: Could not obtain access token from flight service."
 
         # --- Search offers ---
         base_url = "https://test.api.amadeus.com/v2/shopping/flight-offers"
@@ -77,38 +78,16 @@ def get_flights(origin: str,
         res = requests.get(base_url, headers=headers, params=params, timeout=10)
         try:
             res.raise_for_status()
-        except requests.exceptions.HTTPError as e:
-            status = res.status_code
-            detail = res.json() if res.text else {}
-            
-            # Log detailed error info to console for debugging
-            print("\nAmadeus Flight Search Error:")
-            print("-" * 60)
-            print(f"Status: {status}")
-            print(f"Parameters: {params}")
-            print(f"Response: {res.text}")
-            print(f"Headers: {dict(res.headers)}")
-            
-            # For validation errors, log them separately
-            if status == 400 and 'errors' in detail:
-                print("\nValidation Errors:")
-                for err in detail['errors']:
-                    print(f"- Parameter: {err.get('parameter', 'unknown')}")
-                    print(f"  Detail: {err.get('detail', str(err))}")
-            print("-" * 60)
-            
-            # Return a user-friendly message
-            if status == 400:
-                return f"Sorry, there was a problem with the flight search request for {origin} to {destination}. Please check the dates and airport codes."
-            return "Sorry, there was a problem searching for flights. Please try again later."
-            
+        except requests.exceptions.HTTPError:
+            return f"Error: Could not search flights from {origin} to {destination}. Check airport codes and dates."
+
         data = res.json()
 
         if "data" not in data or not data["data"]:
             return f"No flights found from {origin} to {destination} on {departure_date}."
 
-        # Build a readable summary for the top offers
-        lines: list[str] = []
+        # Build readable summary
+        lines = []
         offers = data["data"][:max_results]
         lines.append(f"Found {len(offers)} offer(s) for {origin}->{destination} on {departure_date}:")
 
@@ -133,81 +112,35 @@ def get_flights(origin: str,
 
         return "\n".join(lines)
 
-    except requests.exceptions.RequestException as e:
-        # Log detailed error for debugging
-        print("\nAmadeus Request Error:")
-        print("-" * 60)
-        print(f"Error Type: {type(e).__name__}")
-        print(f"Error Details: {str(e)}")
-        if hasattr(e, 'request'):
-            print(f"Request URL: {e.request.url}")
-            print(f"Request Method: {e.request.method}")
-            print(f"Request Headers: {dict(e.request.headers)}")
-        if hasattr(e, 'response') and e.response is not None:
-            print(f"Response Status: {e.response.status_code}")
-            print(f"Response Text: {e.response.text}")
-        print("-" * 60)
-        return "Sorry, there was a problem connecting to the flight service. Please try again later."
+    except requests.exceptions.RequestException:
+        return "Error: Could not connect to flight service. Please try again later."
     except Exception as e:
-        # Log unexpected errors
-        print("\nUnexpected Error in Flight Search:")
-        print("-" * 60)
-        print(f"Error Type: {type(e).__name__}")
-        print(f"Error Details: {str(e)}")
-        import traceback
-        print(f"Traceback: {traceback.format_exc()}")
-        print("-" * 60)
-        return "Sorry, an unexpected error occurred while searching for flights. Please try again later."
+        return f"Error: Unexpected error while searching flights: {str(e)}"
 
 
-model = init_chat_model("anthropic:claude-sonnet-4-5", temperature=0)
-model_with_tool = model.bind_tools([get_flights])
+def flight_agent(user_message: str, request: Request) -> str:
+    """
+    Process user message about flight searches and return response.
+    Uses LLM to understand request and extract flight parameters.
+    """
+    model = init_chat_model("anthropic:claude-sonnet-4-5", temperature=0)
 
+    geoip = get_geoip(request)
 
-def llm_call(state: dict):
-    res = get_geoip(state["request"])
+    system_prompt = SystemMessage(
+        content=(
+            "You are a flight assistant that helps users find flight offers. "
+            "Understand the user's request to extract origin, destination, and travel dates. "
+            f"Assume the user's home location is based on their geolocation: {geoip.get('city', '')}, {geoip.get('country_name', '')} . "
+            "Assume 1 adult passenger and one-way trips unless stated otherwise. "
+            "Use 3-letter IATA airport codes (e.g., NYC, LAX, LHR). "
+            "Provide helpful responses about flight options."
+        )
+    )
 
-    return {
-        "messages": [
-            model_with_tool.invoke(
-                [
-                    SystemMessage(
-                        content=(
-                            "You are a flight assistant that helps users find flight offers using the Amadeus API. "
-                            + "Assume its a one-way adult trip on " + datetime.now().strftime("%Y-%m-%d")
-                            + (", departing from " + res.get("city", "") + ", " + res.get("country_name", "") + "." if res else ". ")
-                            + "Departure and destination must be in 3-letter city code format (e.g., 'NYC' for New York City)."
-                        )
-                    )
-                ] + state["messages"]
-            )
-        ],
-        "request": state["request"],
-    }
+    response = model.invoke([
+        system_prompt,
+        HumanMessage(content=user_message)
+    ])
 
-
-def tool_node(state: dict):
-    last = state["messages"][-1]
-    results = []
-    for tool_call in last.tool_calls:
-        # only one tool is bound here: get_flights
-        obs = get_flights.invoke(tool_call["args"])
-        results.append(ToolMessage(content=obs, tool_call_id=tool_call["id"]))
-    
-    # Append tool results to the existing message history so the tool_result
-    # blocks reference the AI message that contained the corresponding tool_use.
-    return {"messages": state["messages"] + results, "request": state["request"]}
-
-
-def should_continue(state: dict):
-    return "tool_node" if state["messages"][-1].tool_calls else END
-
-
-graph = StateGraph(dict)
-graph.add_node("llm_call", llm_call)
-graph.add_node("tool_node", tool_node)
-graph.add_edge(START, "llm_call")
-graph.add_conditional_edges("llm_call", should_continue, ["tool_node", END])
-graph.add_edge("tool_node", "llm_call")
-
-flight_agent = graph.compile()
+    return response.content
